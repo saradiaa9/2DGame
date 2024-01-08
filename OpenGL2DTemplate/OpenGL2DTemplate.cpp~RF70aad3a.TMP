@@ -1,0 +1,765 @@
+#include <stdlib.h>
+#include <glut.h>
+#include <iostream>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <vector>
+#include <string>
+#include <sstream>
+float angle = 0.0;
+float width = 800;
+float height = 600;
+float playerX = width / 2;
+float playerY = height / 2;
+float playerDirection = 90.0f;
+float playerSpeed = 6.5f;
+int speedDuration = 0;
+float health = 5;
+int score = 0;
+time_t start;
+time_t current;
+int countdown = 90;
+float PLAYER_SIZE = 60.0f;
+int ShieldDuration=0;
+bool over = false;
+bool loose = false;
+bool win = false;
+std::vector<std::pair<float, float>> obstacles;
+std::vector<std::pair<float, float>> collectible;
+std::vector<std::pair<float, float>> speed;
+std::vector<std::pair<float, float>> shield;
+
+// Function to generate a random position within the screen boundaries
+float generateRandomPosition(float min, float max, const std::vector<std::pair<float, float>>& existingPositions, float minDistance) {
+    while (true) {
+        float randomX = min + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (max - min)));
+        float randomY = min + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (max - min)));
+
+        // Check the distance from existing positions
+        bool validPosition = true;
+        for (const auto& position : existingPositions) {
+            if (std::sqrt(std::pow(position.first - randomX, 2) + std::pow(position.second - randomY, 2)) < minDistance) {
+                validPosition = false;
+                break;
+            }
+        }
+
+        if (validPosition) {
+            return randomX;
+        }
+    }
+}
+
+// Special keys callback function for handling player movement and rotation
+void SpecialInput(int key, int x, int y) {
+    switch (key) {
+    case GLUT_KEY_UP:
+        playerY += 10;
+        break;
+    case GLUT_KEY_DOWN:
+        playerY -= 10;
+        break;
+    case GLUT_KEY_LEFT:
+        playerX -= 10;
+        break;
+    case GLUT_KEY_RIGHT:
+        playerX += 10;
+        break;
+    }
+    glutPostRedisplay();
+}
+
+void DrawBorders() {
+    glPushMatrix();
+    // Draw the main border
+    glColor3f(1.0f, 0.0f, 0.5f); // Set color to pink
+    glLineWidth(2.0); // Set the line width
+    glBegin(GL_LINE_LOOP);
+    glVertex2f(20.0f, 20.0f); // Bottom-left corner
+    glVertex2f(width - 20, 20.0f); // Bottom-right corner
+    glVertex2f(width - 20, height - 20); // Top-right corner
+    glVertex2f(20.0f, height - 20); // Top-left corner
+    glEnd();
+
+    glColor3f(0.5f, 0.0f, 5.f); // Set color to pink
+    glLineWidth(2.0); // Set the line width
+    glBegin(GL_LINE_LOOP);
+    glVertex2f(30.0f, 30.0f); // Bottom-left corner
+    glVertex2f(width - 30, 30.0f); // Bottom-right corner
+    glVertex2f(width - 30, height - 30); // Top-right corner
+    glVertex2f(30.0f, height - 30); // Top-left corner
+    glEnd();
+
+    glColor3f(0.5f, 0.0f, 5.f); // Set color to pink
+    glLineWidth(2.0); // Set the line width
+    glBegin(GL_LINE_LOOP);
+    glVertex2f(30.0f, height - 30); // Bottom-left corner
+    glVertex2f(width / 3, height - 30); // Bottom-right corner
+    glVertex2f(width / 3, height - 70); // Top-right corner
+    glVertex2f(30.0f, height - 70); // Top-left corner
+    glEnd();
+
+
+    glColor3f(0.5f, 0.0f, 5.f); // Set color to pink
+    glLineWidth(2.0); // Set the line width
+    glBegin(GL_LINE_LOOP);
+    glVertex2f(width / 3, height - 30); // Bottom-left corner
+    glVertex2f(width / 3 + width / 3, height - 30); // Bottom-right corner
+    glVertex2f(width / 3 + width / 3, height - 70); // Top-right corner
+    glVertex2f(width / 3, height - 70); // Top-left corner
+    glEnd();
+
+    glColor3f(0.5f, 0.0f, 5.f); // Set color to pink
+    glLineWidth(2.0); // Set the line width
+    glBegin(GL_LINE_LOOP);
+    glVertex2f(width / 3 + width / 3, height - 30); // Bottom-left corner
+    glVertex2f(width - 30, height - 30); // Bottom-right corner
+    glVertex2f(width - 30, height - 70); // Top-right corner
+    glVertex2f(width / 3 + width / 3, height - 70); // Top-left corner
+    glEnd();
+    glPopMatrix();
+}
+
+void playerDraw() {
+    glPushMatrix();
+    glTranslatef(playerX, playerY, 0);
+    glRotatef(angle, 0, 0, 1);
+
+    // Draw the body as a rectangle
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glBegin(GL_QUADS);
+    glVertex2f(-5, 0); // Bottom-left corner
+    glVertex2f(5, 0); // Bottom-right corner
+    glVertex2f(5, -40); // Top-right corner
+    glVertex2f(-5, -40); // Top-left corner
+    glEnd();
+
+    // Draw the head as a cirrcle
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glBegin(GL_POLYGON);
+    for (int i = 0; i < 360; i++) {
+        float rad = i * 3.14159 / 180;
+        glVertex2f(15 * cos(rad), 15 * sin(rad));
+    }
+    glEnd();
+
+    // Draw the crown using a polygon
+    glColor3f(0.5f, 0.0f, 5.0f);  // Set color to blue
+    glBegin(GL_POLYGON);
+    glVertex2f(-5, 15); // Left point of the hat
+    glVertex2f(5, 15); // Right point of the hat
+    glVertex2f(5, 32);
+    glVertex2f(0, 20); // Top point of the hat
+    glVertex2f(-5, 32);
+
+    glEnd();
+
+    // Draw the arms
+    glPushMatrix();
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glTranslatef(0, -10, 0);
+    glRotatef(-45, 0, 0, 1);
+    glBegin(GL_LINES);
+    glVertex2f(0, 0);
+    glVertex2f(20, 0);
+    glEnd();
+    glPopMatrix();
+
+    glPushMatrix();
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glTranslatef(0, -10, 0);
+    glRotatef(45, 0, 0, 1);
+    glBegin(GL_LINES);
+    glVertex2f(0, 0);
+    glVertex2f(-20, 0);
+    glEnd();
+    glPopMatrix();
+
+    // Draw the legs
+    glPushMatrix();
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glTranslatef(0, -40, 0);
+    glRotatef(-45, 0, 0, 1);
+    glBegin(GL_LINES);
+    glVertex2f(0, 0);
+    glVertex2f(20, 0);
+    glEnd();
+    glPopMatrix();
+
+    glPushMatrix();
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glTranslatef(0, -40, 0);
+    glRotatef(45, 0, 0, 1);
+    glBegin(GL_LINES);
+    glVertex2f(0, 0);
+    glVertex2f(-20, 0);
+    glEnd();
+    glPopMatrix();
+
+
+
+    glPopMatrix();
+
+}
+
+void DrawObstacle(float x, float y) {
+
+    glColor3f(0.5f, 0.0f, 5.0f);// Set color to cyan
+    glPushMatrix();
+    glTranslatef(x, y, 0);
+    glBegin(GL_QUADS);
+    glVertex2f(-10, -10); // Bottom-left corner
+    glVertex2f(10, -10); // Bottom-right corner
+    glVertex2f(10, 10); // Top-right corner
+    glVertex2f(-10, 10); // Top-left corner
+    glEnd();
+
+    glColor3f(1.0f, 0.0f, 0.5f); // Set color to red
+    glBegin(GL_TRIANGLES);
+    glVertex2f(10, 10);
+    glVertex2f(-10, -10);
+    glVertex2f(-10, 10);
+    glEnd();
+
+    glPopMatrix();
+
+
+
+}
+
+void DrawObstacles() {
+    DrawObstacle(200, 200);
+    obstacles.push_back({ 200, 200 });
+    DrawObstacle(100, 500);
+    obstacles.push_back({ 100, 500 });
+    DrawObstacle(100, 500);
+    obstacles.push_back({ 100, 500 });
+    DrawObstacle(550, 200);
+    obstacles.push_back({ 550, 200 });
+    DrawObstacle(550, 500);
+    obstacles.push_back({ 550, 500 });
+    DrawObstacle(100, 200);
+    obstacles.push_back({ 100, 200});
+
+}
+
+void DrawHealthBar() {
+    if (health > 5) {
+        health = 5; // Limit health to a maximum of 5 points
+    }
+    // Draw the health bar in the first line loop on the left
+    glColor3f(0.0f, 1.0f, 0.0f); // Set color to green
+    glLineWidth(2.0); // Set the line width
+    glBegin(GL_QUADS);
+    glVertex2f(70.0f, height - 60); // Bottom-left corner
+    glVertex2f(70.0f + health * 30, height - 60); // Bottom-right corner
+    glVertex2f(70.0f + health * 30, height - 40); // Top-right corner
+    glVertex2f(70.0f, height - 40); // Top-left corner
+    glEnd();
+}
+
+void DrawCollectableSword(float x, float y) {
+    glColor3f(0.5f, 0.0f, 5.0f);// Set color to black
+    glPushMatrix();
+    glTranslatef(x, y, 0);
+
+    // Draw the handle of the sword
+    glBegin(GL_QUADS);
+    glVertex2f(-5, -20); // Bottom-left corner
+    glVertex2f(5, -20); // Bottom-right corner
+    glVertex2f(5, 20); // Top-right corner
+    glVertex2f(-5, 20); // Top-left corner
+    glEnd();
+
+    // Draw the blade of the sword
+    glBegin(GL_TRIANGLES);
+    glVertex2f(5, 20); // Bottom-right point of the triangle
+    glVertex2f(-5, 20); // Bottom-left point of the triangle
+    glVertex2f(0, 40); // Top point of the triangle
+    glEnd();
+
+    // Draw the guard of the sword
+    glBegin(GL_QUADS);
+    glVertex2f(-10, -20); // Bottom-left corner
+    glVertex2f(10, -20); // Bottom-right corner
+    glVertex2f(10, -25); // Top-right corner
+    glVertex2f(-10, -25); // Top-left corner
+    glEnd();
+
+    glPopMatrix();
+}
+
+void DrawPrincess(float x, float y) {
+    glPushMatrix();
+    glTranslatef(x, y, 0);
+    glRotatef(angle, 0, 0, 1);
+
+    // Draw the hair as a triangle
+    glColor3f(0.5f, 0.0f, 5.0f);
+    glBegin(GL_POLYGON);
+    for (int i = 0; i < 360; i++) {
+        float rad = i * 3.14159 / 180;
+        glVertex2f(20 * cos(rad), 20 * sin(rad));
+    }
+    glEnd();
+
+    // Draw the body as a rectangle
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glBegin(GL_QUADS);
+    glVertex2f(-5, 0); // Bottom-left corner
+    glVertex2f(5, 0); // Bottom-right corner
+    glVertex2f(5, -40); // Top-right corner
+    glVertex2f(-5, -40); // Top-left corner
+    glEnd();
+
+
+
+    // Draw the head as a triangle
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glBegin(GL_POLYGON);
+    for (int i = 0; i < 360; i++) {
+        float rad = i * 3.14159 / 180;
+        glVertex2f(10 * cos(rad), 10 * sin(rad));
+    }
+    glEnd();;
+
+    // Draw the crown using a polygon
+    glColor3f(1.0f, 0.0f, 0.5f);  // Set color to blue
+    glBegin(GL_POLYGON);
+    glVertex2f(-5, 15); // Left point of the hat
+    glVertex2f(5, 15); // Right point of the hat
+    glVertex2f(5, 32);
+    glVertex2f(0, 20); // Top point of the hat
+    glVertex2f(-5, 32);
+
+    glEnd();
+
+    // Draw the arms
+    glPushMatrix();
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glTranslatef(0, -10, 0);
+    glRotatef(-45, 0, 0, 1);
+    glBegin(GL_LINES);
+    glVertex2f(0, 0);
+    glVertex2f(20, 0);
+    glEnd();
+    glPopMatrix();
+
+    glPushMatrix();
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glTranslatef(0, -10, 0);
+    glRotatef(45, 0, 0, 1);
+    glBegin(GL_LINES);
+    glVertex2f(0, 0);
+    glVertex2f(-20, 0);
+    glEnd();
+    glPopMatrix();
+
+    // Draw the legs
+    glPushMatrix();
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glTranslatef(0, -40, 0);
+    glRotatef(-45, 0, 0, 1);
+    glBegin(GL_LINES);
+    glVertex2f(0, 0);
+    glVertex2f(20, 0);
+    glEnd();
+    glPopMatrix();
+
+    glPushMatrix();
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glTranslatef(0, -40, 0);
+    glRotatef(45, 0, 0, 1);
+    glBegin(GL_LINES);
+    glVertex2f(0, 0);
+    glVertex2f(-20, 0);
+    glEnd();
+    glPopMatrix();
+
+    glPopMatrix();
+}
+
+void DrawShield(float x, float y) {
+    glColor3f(0.5f, 0.0f, 5.0f); // Set color to gray
+    glPushMatrix();
+    glTranslatef(x, y, 0);
+
+    // Draw the base of the shield as a circle
+    float radius = 20.0f;
+    int num_segments = 100;
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(0, 0);
+    for (int i = 0; i <= num_segments; i++) {
+        float theta = 2.0f * 3.1415926f * float(i) / float(num_segments);
+        float x = radius * cosf(theta);
+        float y = radius * sinf(theta);
+        glVertex2f(x, y);
+    }
+    glEnd();
+
+    glColor3f(1.0f, 0.0f, 0.5f);
+    radius = 10.0f;
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(0, 0);
+    for (int i = 0; i <= num_segments; i++) {
+        float theta = 2.0f * 3.1415926f * float(i) / float(num_segments);
+        float x = radius * cosf(theta);
+        float y = radius * sinf(theta);
+        glVertex2f(x, y);
+    }
+    glEnd();
+
+    // Draw the handle of the shield as a rectangle
+    glBegin(GL_QUADS);
+    glVertex2f(-5, -25); // Bottom-left corner
+    glVertex2f(5, -25); // Bottom-right corner
+    glVertex2f(5, -20); // Top-right corner
+    glVertex2f(-5, -20); // Top-left corner
+    glEnd();
+
+    glBegin(GL_QUADS);
+    glVertex2f(-5, 20); // Bottom-left corner
+    glVertex2f(5, 20); // Bottom-right corner
+    glVertex2f(5, 25); // Top-right corner
+    glVertex2f(-5, 25); // Top-left corner
+    glEnd();
+
+    glPopMatrix();
+}
+
+void DrawCastle() {
+    // towers
+    glColor3f(1.0f, 0.0f, 0.5f); // Light gray color for the base
+    glPushMatrix();
+    glTranslatef(width - 600, height - 500, 0);
+    glBegin(GL_QUADS);
+    glVertex2f(-60, -30); // Bottom-left corner
+    glVertex2f(60, -30); // Bottom-right corner
+    glVertex2f(60, 30); // Top-right corner
+    glVertex2f(-60, 30); // Top-left corner
+    glEnd();
+    glPopMatrix();
+
+    // Castle base as a rectangle
+    glColor3f(0.5f, 0.0f, 5.0f); // Light gray color for the base
+    glPushMatrix();
+    glTranslatef(width - 600, height - 500, 0);
+    glBegin(GL_QUADS);
+    glVertex2f(-30, -30); // Bottom-left corner
+    glVertex2f(30, -30); // Bottom-right corner
+    glVertex2f(30, 30); // Top-right corner
+    glVertex2f(-30, 30); // Top-left corner
+    glEnd();
+    glPopMatrix();
+
+    // Draw the roof as a triangle for both towers
+    glColor3f(0.5f, 0.0f, 5.0f); // Dark gray color for the roof
+    glPushMatrix();
+    glTranslatef(width - 600, height - 500, 0);
+    glBegin(GL_TRIANGLES);
+    glVertex2f(-60, 30); // Left corner
+    glVertex2f(-45, 60); // Top corner
+    glVertex2f(-30, 30); // Right corner
+    glEnd();
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(width - 600, height - 500, 0);
+    glBegin(GL_TRIANGLES);
+    glVertex2f(30, 30); // Left corner
+    glVertex2f(45, 60); // Top corner
+    glVertex2f(60, 30); // Right corner
+    glEnd();
+    glPopMatrix();
+
+    // Draw the gate as a rectangle
+    glColor3f(1.0f, 0.0f, 0.5f); // Brown color for the gate
+    glPushMatrix();
+    glTranslatef(width - 600, height - 500, 0);
+    glBegin(GL_QUADS);
+    glVertex2f(-10, -30); // Bottom-left corner
+    glVertex2f(10, -30); // Bottom-right corner
+    glVertex2f(10, 0); // Top-right corner
+    glVertex2f(-10, 0); // Top-left corner
+    glEnd();
+    glPopMatrix();
+
+    
+}
+
+
+
+
+
+void initAllCollectables() {
+    srand(static_cast<unsigned>(time(0))); // Seed the random number generator
+
+    for (int i = 0; i < 5; ++i) { // Generate five collectible positions
+        float collectibleX = generateRandomPosition(50, width - 50, obstacles, 50.0f); // Adjust the range as needed
+        float collectibleY = generateRandomPosition(100, height - 100, obstacles, 50.0f); // Adjust the range as needed
+        collectible.emplace_back(collectibleX, collectibleY);
+        
+    }
+
+    for (int i = 0; i < 2; ++i) {
+        float princessX= generateRandomPosition(50, width - 50, obstacles, 50.0f);
+        float princessY= generateRandomPosition(100, height - 100, obstacles, 50.0f);
+        speed.emplace_back(princessX, princessY);
+    }
+
+    for (int i = 0; i < 3;++i) {
+        float shieldX= generateRandomPosition(50, width - 50, obstacles, 50.0f);
+        float shieldY= generateRandomPosition(100, height - 100, obstacles, 50.0f);
+        shield.emplace_back(shieldX, shieldY);
+    }
+
+}
+
+
+void displayCountdown() {
+    int secondsRemaining = 100 - difftime(time(&current), start);
+    std::ostringstream ss;
+    ss << "Time Remaining: " << secondsRemaining << "s";
+    std::string countdownText = ss.str();
+
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glRasterPos2i(width / 3 + width / 3 + 30, height - 55);
+    for (char c : countdownText) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, c);
+    }
+}
+
+void updateTimer(int value) {
+    countdown--;
+    if (countdown > 0) {
+        glutTimerFunc(1000, updateTimer, 0);
+    }
+
+    glutPostRedisplay();
+}
+
+void updatePowerUps() {
+    if (speedDuration > 0) {
+        speedDuration--;
+        if (speedDuration == 0) {
+            playerSpeed = 6.5f; // Set the speed back to the original value
+        }
+    }
+    if (ShieldDuration > 0) {
+        ShieldDuration--;
+    }
+
+}
+
+
+void AllDisplay() {
+    
+
+    // Draw game score
+    glColor3f(1.0f, 0.0f, 0.5f);
+    glRasterPos2i(width / 3 + 100, height - 55);
+    char scoreStr[20];
+    sprintf(scoreStr, "Score: %d", score);
+    for (int i = 0; scoreStr[i] != '\0'; i++) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, scoreStr[i]);
+    }
+
+
+    DrawBorders();
+    playerDraw();
+    DrawObstacles();
+    DrawHealthBar();
+    for (const auto& pos : collectible) {
+        DrawCollectableSword(pos.first, pos.second);
+    }
+    for (const auto& pos : speed) {
+        DrawPrincess(pos.first, pos.second);
+    }
+    for (const auto& pos : shield) {
+        DrawShield(pos.first, pos.second);
+    }
+    DrawCastle();
+    displayCountdown();
+
+    if (playerX - PLAYER_SIZE < 10 || playerX + PLAYER_SIZE > width - 30 ||
+        playerY - PLAYER_SIZE < 10 || playerY + PLAYER_SIZE > height - 70) {
+        if (ShieldDuration > 0) {
+            // If the shield is active, remove the shield and continue
+            ShieldDuration = 0;
+            playerX = width / 2; // Reset player position to the center
+            playerY = height / 2;
+        }
+        else {
+            health--; // Decrement player lives on collision
+            playerX = width / 2; // Reset player position to the center
+            playerY = height / 2;
+            if (health == 0) {
+                over = true; // Set game over when lives reach 0
+                loose = true;
+            }
+        }
+    }
+
+    for (auto it = speed.begin(); it != speed.end();) {
+        float SpeedBoostX = it->first;
+        float SpeedBoostY = it->second;
+        if (playerX + PLAYER_SIZE > SpeedBoostX - 10 && playerX - PLAYER_SIZE < SpeedBoostX + 10 &&
+            playerY + PLAYER_SIZE > SpeedBoostY - 10 && playerY - PLAYER_SIZE < SpeedBoostY + 10) {
+            it = speed.erase(it); // Remove the collectible when the player collides with it
+            playerSpeed = 13.0f;
+            speedDuration = 10000;
+
+        }
+        else {
+            ++it;
+        }
+    }
+
+    for (auto it = shield.begin(); it != shield.end();) {
+        float ShieldCollectibleX = it->first;
+        float ShieldCollectibleY = it->second;
+        if (playerX + PLAYER_SIZE > ShieldCollectibleX - 10 && playerX - PLAYER_SIZE < ShieldCollectibleX + 10 &&
+            playerY + PLAYER_SIZE > ShieldCollectibleY - 10 && playerY - PLAYER_SIZE < ShieldCollectibleY + 10) {
+            it = shield.erase(it); // Remove the shield collectible when the player collides with it
+            // Add shield functionality here
+            ShieldDuration = 10000;
+
+        }
+        else {
+            ++it;
+        }
+    }
+
+    // Check for collisions with the collectibles
+    for (auto it = collectible.begin(); it != collectible.end();) {
+        float collectibleX = it->first;
+        float collectibleY = it->second;
+
+        if (playerX + PLAYER_SIZE > collectibleX - 10 && playerX - PLAYER_SIZE < collectibleX + 10 &&
+            playerY + PLAYER_SIZE > collectibleY - 10 && playerY - PLAYER_SIZE < collectibleY + 10) {
+            it = collectible.erase(it); // Remove the collectible when the player collides with it
+            score++; // Increase the game score
+        }
+        else {
+            ++it;
+        }
+    }
+
+    // Check for collisions with the obstacles
+    for (const auto& pos : obstacles) {
+        if (playerX + PLAYER_SIZE > pos.first && playerX - PLAYER_SIZE < pos.first + 20 &&
+            playerY + PLAYER_SIZE > pos.second && playerY - PLAYER_SIZE < pos.second + 20) {
+            if (ShieldDuration > 0) {
+                // If the shield is active, remove the shield and continue
+                ShieldDuration = 0;
+
+                playerX = width / 2; // Reset player position to the center
+                playerY = height / 2;
+            }
+            else {
+                health--; // Decrement player lives on collision with an obstacle
+                playerX = width / 2; // Reset player position to the center
+                playerY = height / 2;
+                if (health == 0) {
+                    over = true; // Set game over when lives reach 0
+                    loose = true;
+                }
+            }
+            break;
+        }
+    }
+
+    if (playerX + PLAYER_SIZE > width - 600 - 120.0f / 2 && playerX - PLAYER_SIZE < width - 600 + 120.0f / 2 &&
+        playerY + PLAYER_SIZE > height - 500 - 90 / 2 && playerY - PLAYER_SIZE < height - 500 + 90 / 2) {
+        std::cout << "Congratulations! You Win!" << std::endl;
+        over = true;
+        win = true;
+    }
+   
+    
+
+    updatePowerUps();
+
+        glFlush();
+
+    
+}
+void Display() {
+    glClear(GL_COLOR_BUFFER_BIT);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        if (!over) {
+            AllDisplay();
+
+            // Update the timer
+            current = std::time(nullptr);
+            int elapsedSeconds = current - start;
+            countdown = std::max(90 - elapsedSeconds, 0);
+
+            // Check if the game time has reached zero
+            if (countdown == 0) {
+                std::cout << "Your Time's up!" << std::endl;
+                over = true;
+                loose = true;
+            }
+        }
+        else {
+            // Game over logic
+            if (loose) {
+                glPushMatrix();
+                glColor3f(1.0, 0.0, 0.0); // Set color to red
+                glRasterPos2i(width / 2 - 40, height / 2);
+                std::string gameOverText = "GAME OVER";
+                for (char& c : gameOverText) {
+                    glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, c);
+                }
+                glPopMatrix();
+            }
+            // Win logic
+            if (win) {
+                glPushMatrix();
+                glColor3f(0.0, 1.0, 0.0); // Set color to green
+                glRasterPos2i(width / 2 - 40, height / 2 + 20);
+                std::string winText = "YOU WINN!";
+                for (char& c : winText) {
+                    glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, c);
+                }
+                glPopMatrix();
+            }
+        }
+
+        // Display the countdown
+
+
+        // Continuously update the display only when the game is not over
+        glutPostRedisplay();
+        glFlush();
+    }
+
+
+void main(int argc, char** argr) {
+    glutInit(&argc, argr);
+
+    glutInitWindowSize(width, height);
+    glutInitWindowPosition(150, 150);
+
+    glutCreateWindow("OpenGL - Game");
+    glutDisplayFunc(Display);
+    glutSpecialFunc(SpecialInput);
+
+    glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    gluOrtho2D(0.0, width, 0.0, height);
+
+
+    initAllCollectables();
+
+    start = time(nullptr);
+    current = time(nullptr);
+    glutTimerFunc(1000, updateTimer, 0);
+    glutMainLoop();
+
+
+}
